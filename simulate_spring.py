@@ -2,19 +2,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import math
 
-# Mesure Accel
-# each 1ms Spd - LastSpd
-# Spd = Nb                      in encoderPulse / ms
-#     = Nb * 360 / 2500.0       in ° / ms
-#     = Nb * 360 / 2.5          in ° / s
-# So accel :
-# Accel = (spd - lastSpd) * 360 / 2.5 in    in (° / s) / ms
-#       = (spd - lastSpd) * 360 000 / 2.5   in ° / s²
-
-# scaled for 1500°/s² accel on range 0..32767
-maxAccel = 130000 #°/s
-maxAccelInMetric = (maxAccel * 2.5) / 360000
-scaleAccel = 32767/maxAccelInMetric
+# spring scaler
+maxPos = (int)(900/2)
+scalePos = 32767/maxPos
 
 # effect friction to simulate
 offset = 0
@@ -50,11 +40,12 @@ def calcConditionEffectForce_vma(metric, scale) :
 
     return force
 
-def inertia_vma(i):
+def spring_vma(i):
     force = 0
-    accel = i * scaleAccel
-    force = calcConditionEffectForce_vma(accel, 1)
+    pos = i * scalePos
+    force = calcConditionEffectForce_vma(pos, 1)
     return force
+
 
 ################################### Default Implementation ###################################
 def calcConditionEffectForce_default(metric, scale):
@@ -77,38 +68,38 @@ def calcConditionEffectForce_default(metric, scale):
         
     return force
 
-def inertia_defaut(i):
-    metric = i * 4
+def spring_defaut(i):
+    metric = i
     force = 0
-    force = calcConditionEffectForce_default(metric, 0.5)
+    force = calcConditionEffectForce_default(metric, 0.0004)
     return force
 
 
 ######
-# compute the Xaxis value : ivals for the effect, and xvals_scaled for the 120rpm normalized value
+# compute the Xaxis value : ivals for the effect, and xvals_scaled for the 450° normalized value
 # and the 2 frictions scaled effect
-nbval = maxAccel
+nbval = maxPos
 ivals = [0] * nbval
 xvals_scaled = [0] * nbval
 for i in range(nbval) :
     xvals_scaled[i] = i
-    ivals[i] = (i * 2.5) / 360000
-out1 = list(map(inertia_vma,ivals))
+    ivals[i] = i
+out1 = list(map(spring_vma,ivals))
 
 # compute the Xaxis value for the original release, without scaling and the original version
-nbval = maxAccel
+nbval = maxPos
 xvals_realspeed = [0] * nbval
 ivals = [0] * nbval
 for i in range(nbval) :   
     xvals_realspeed[i] = i
-    ivals[i] = ((i * 2.5) / 360000)
-out2 = list(map(inertia_defaut,ivals))
+    ivals[i] = i * scalePos
+out2 = list(map(spring_defaut,ivals))
 
 # draw
 fig, ax = plt.subplots()
 ax.plot(xvals_scaled, out1, xvals_realspeed, out2)
-ax.legend(['inertia_vma', 'inertia_default'])
-ax.set_xlabel('Accel (°/s²)')
+ax.legend(['spring_vma', 'spring_default'])
+ax.set_xlabel('position (°)')
 ax.set_ylabel('Torque')
 ax.grid(True)
 plt.show()

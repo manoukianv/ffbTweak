@@ -13,6 +13,7 @@ positiveCoefficient = 32767
 negativeSaturation = 32767
 positiveSaturation = 32767
 
+################################### VMA fix Implementation ###################################
 def friction_vma_fix(i):
     force = 0
 
@@ -39,7 +40,7 @@ def friction_vma_fix(i):
 
     return force
 
-
+################################### VMA buggy Implementation ###################################
 def friction_vma_buggy(i):
     force = 0
 
@@ -66,6 +67,7 @@ def friction_vma_buggy(i):
 
     return force
 
+################################### Default Implementation ###################################
 def calcConditionEffectForce(metric, gain, pos, scale):
     force = 0
 	
@@ -117,7 +119,7 @@ out3 = list(map(friction_default,ivals))
 fig, ax = plt.subplots()
 ax.plot(xvals_scaled, out1, xvals_scaled, out2, xvals_realspeed, out3)
 ax.legend(['vma_buggy', 'vma_fixed', 'previous'])
-ax.set_xlabel('Speed')
+ax.set_xlabel('Speed (rpm)')
 ax.set_ylabel('Torque')
 ax.grid(True)
 plt.show()

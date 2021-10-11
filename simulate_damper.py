@@ -13,6 +13,7 @@ positiveCoefficient = 32767
 negativeSaturation = 32767
 positiveSaturation = 32767
 
+################################### VMA buggy Implementation ###################################
 def calcConditionEffectForce_vma(metric, scale) :
 
     force = 0
@@ -94,7 +95,7 @@ out2 = list(map(damper_defaut,ivals))
 fig, ax = plt.subplots()
 ax.plot(xvals_scaled, out1, xvals_realspeed, out2)
 ax.legend(['damper_vma', 'damper_default'])
-ax.set_xlabel('Speed')
+ax.set_xlabel('Speed (rpm)')
 ax.set_ylabel('Torque')
 ax.grid(True)
 plt.show()
