@@ -31,7 +31,7 @@ def friction_vma_fix(i):
         if (abs (speed) < speedRampupPct):	#if speed in the range to rampup we apply a sinus curbe to ramup
 
             phaseRad = math.pi * ((abs (speed) / speedRampupPct) - 0.5)  # we start to compute the normalized angle (speed / normalizedSpeed@5%) and translate it of -1/2PI to translate sin on 1/2 periode
-            rampupFactor = ( 1 + math.sin(phaseRad ) ) / 2;					# sin value is -1..1 range, we translate it to 0..2 and we scale it by 2
+            rampupFactor = ( 1 + math.sin(phaseRad ) ) / 2;				 # sin value is -1..1 range, we translate it to 0..2 and we scale it by 2
 
         sign = 1 if speed >= 0 else -1
         coeff = negativeCoefficient if speed < 0 else positiveCoefficient
