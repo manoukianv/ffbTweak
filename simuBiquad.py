@@ -14,7 +14,9 @@ License: GPL3
 """
 import os
 import random
+from numpy.core.shape_base import stack
 import wx
+import math
 
 # The code was updated to work with Python 3.8 and wxPython v4
 
@@ -30,6 +32,104 @@ from matplotlib.backends.backend_wxagg import \
 import numpy as np
 import pylab
 
+class Biquad():
+    def __init__(self, biquadType, fc, q, peakGainDB):
+        self.a0 = 0
+        self.a1 = 0
+        self.a2 = 0
+        self.b1 = 0
+        self.b2 = 0
+        self.setBiquad(biquadType, fc, q, peakGainDB)
+
+    def setBiquad(self, biquadType, fc, q, peakGainDB) :
+        self.Fc = np.clip(fc, 0, 0.5)
+        self.type = biquadType
+        self.Q = q
+        self.Fc = fc
+        self.peakGain = peakGainDB
+        self.calcBiquad()
+
+    def calcBiquad(self):
+        norm = 0
+        V = pow(10, math.fabs(self.peakGain) / 20.0)
+        K = math.tan(math.pi * self.Fc)
+        if self.type == 0:  #lowpass
+            norm = 1 / (1 + K / self.Q + K * K)
+            self.a0 = K * K * norm
+            self.a1 = 2 * self.a0
+            self.a2 = self.a0
+            self.b1 = 2 * (K * K - 1) * norm
+            self.b2 = (1 - K / self.Q + K * K) * norm
+
+        elif self.type == 1: #highpass:
+            norm = 1 / (1 + K / self.Q + K * K)
+            self.a0 = 1 * norm
+            self.a1 = -2 * self.a0
+            self.a2 = self.a0
+            self.b1 = 2 * (K * K - 1) * norm
+            self.b2 = (1 - K / self.Q + K * K) * norm
+
+        elif self.type == 2: #bandpass:
+            norm = 1 / (1 + K / self.Q + K * K)
+            self.a0 = K / self.Q * norm
+            self.a1 = 0
+            self.a2 = -self.a0
+            self.b1 = 2 * (K * K - 1) * norm
+            self.b2 = (1 - K / self.Q + K * K) * norm
+
+        elif self.type == 3: #notch:
+            norm = 1 / (1 + K / self.Q + K * K)
+            self.a0 = (1 + K * K) * norm
+            self.a1 = 2 * (K * K - 1) * norm
+            self.a2 = self.a0
+            self.b1 = self.a1
+            self.b2 = (1 - K / self.Q + K * K) * norm
+
+        elif self.type == 4: #peak:
+            if (self.peakGain >= 0):    # boost
+                norm = 1 / (1 + 1/self.Q * K + K * K)
+                self.a0 = (1 + V/self.Q * K + K * K) * norm
+                self.a1 = 2 * (K * K - 1) * norm
+                self.a2 = (1 - V/self.Q * K + K * K) * norm
+                self.b1 = self.a1
+                self.b2 = (1 - 1/self.Q * K + K * K) * norm
+            else:   # cut
+                norm = 1 / (1 + V/self.Q * K + K * K)
+                self.a0 = (1 + 1/self.Q * K + K * K) * norm
+                self.a1 = 2 * (K * K - 1) * norm
+                self.a2 = (1 - 1/self.Q * K + K * K) * norm
+                self.b1 = self.a1
+                self.b2 = (1 - V/self.Q * K + K * K) * norm
+        elif self.type == 5: #lowshelf:
+            if (self.peakGain >= 0):   # boost
+                norm = 1 / (1 + math.sqrt(2) * K + K * K)
+                self.a0 = (1 + math.sqrt(2*V) * K + V * K * K) * norm
+                self.a1 = 2 * (V * K * K - 1) * norm
+                self.a2 = (1 - math.sqrt(2*V) * K + V * K * K) * norm
+                self.b1 = 2 * (K * K - 1) * norm
+                self.b2 = (1 - math.sqrt(2) * K + K * K) * norm
+            else:    # cut
+                norm = 1 / (1 + math.sqrt(2*V) * K + V * K * K)
+                self.a0 = (1 + math.sqrt(2) * K + K * K) * norm
+                self.a1 = 2 * (K * K - 1) * norm
+                self.a2 = (1 - math.sqrt(2) * K + K * K) * norm
+                self.b1 = 2 * (V * K * K - 1) * norm
+                self.b2 = (1 - math.sqrt(2*V) * K + V * K * K) * norm
+        elif self.type == 6: #highshelf:
+            if (self.peakGain >= 0):   # boost
+                norm = 1 / (1 + math.sqrt(2) * K + K * K)
+                self.a0 = (V + math.sqrt(2*V) * K + K * K) * norm
+                self.a1 = 2 * (K * K - V) * norm
+                self.a2 = (V - math.sqrt(2*V) * K + K * K) * norm
+                self.b1 = 2 * (K * K - 1) * norm
+                self.b2 = (1 - math.sqrt(2) * K + K * K) * norm
+            else:    # cut
+                norm = 1 / (V + math.sqrt(2*V) * K + K * K)
+                self.a0 = (1 + math.sqrt(2) * K + K * K) * norm
+                self.a1 = 2 * (K * K - 1) * norm
+                self.a2 = (1 - math.sqrt(2) * K + K * K) * norm
+                self.b1 = 2 * (K * K - V) * norm
+                self.b2 = (V - math.sqrt(2*V) * K + K * K) * norm
 
 class DataGen(object):
     """ A silly class that generates pseudo-random data for
@@ -37,21 +137,29 @@ class DataGen(object):
     """
     def __init__(self, init=50):
         self.data = self.init = init
-        self.a0 = 0
-        self.a1 = 0
-        self.a2 = 0
-        self.b1 = 0
-        self.b2 = 0
         self.z1 = 0
         self.z2 = 0
         self.x1 = 0
         self.x2 = 0
 
     def reset_series(self):
-        self.samples = [0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] * 10
-        self.filtered_samples = list(map(self._compute_sample,self.samples))
-        print(self.filtered_samples)
+        #samples1 = [0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] * 5
+        #samples2 = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] * 2
+        #self.samples = samples1 + samples2
+        #self.timing = np.arange(0.0, len(self.samples), 1)
+        
+        #Sin
+        #timing1 = np.arange(0.0, 150, 1)
+        #samples1 = np.sin(timing1 / 10)
+        #samples2 = np.array([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] * 6)
+        #timing2 = np.arange(len(samples1), len(samples1)+len(samples2), 1)
+        #self.samples = np.concatenate((samples1, samples2))
+        #self.timing = np.concatenate((timing1, timing2))
+
+        self.samples = np.random.randint(1,100,500)
         self.timing = np.arange(0.0, len(self.samples), 1)
+        self.filtered_samples = list(map(self._compute_sample,self.samples))
+
 
     def setUpCoefficient(self, a0, a1, a2, b1, b2):
         self.a0 = a0
@@ -59,6 +167,10 @@ class DataGen(object):
         self.a2 = a2
         self.b1 = b1
         self.b2 = b2
+        self.z1 = 0
+        self.z2 = 0
+        self.x1 = 0
+        self.x2 = 0
 
     def _compute_sample(self,i):
         out = i * self.a0 + self.z1
@@ -74,48 +186,54 @@ class ControlBox(wx.Panel):
     """
     def __init__(self, parent, ID, label):
         wx.Panel.__init__(self, parent, ID)
-        self.a0 = 0.013806011447721036
-        self.a1 = 0.02761202289544207
-        self.a2 = 0.013806011447721036
-        self.b1 = -1.0730986973124192
-        self.b2 = 0.12832274310330333
+        self.type = 0
+        self.sample = 2000
+        self.fc = 20
+        self.Q = 1
+        self.gain = -30
 
         box = wx.StaticBox(self, -1, label)
         sizer = wx.StaticBoxSizer(box, wx.HORIZONTAL)
         
         #self.radio_auto = wx.RadioButton(self, -1, label="Auto", style=wx.RB_GROUP)
         #self.radio_manual = wx.RadioButton(self, -1, label="Manual")
-        self.manual_text0 = wx.TextCtrl(self, -1,
+        type = ['lowpass', 'highpass', 'bandpass', 'notch', 'peak', 'lowshelf', 'highshelf'] 
+        self.typeeffect = wx.ComboBox(self, -1,
             size=(70,-1),
-            value=str(self.a0),
-            style=wx.TE_PROCESS_ENTER)
+            choices = type,
+            style=wx.TE_PROCESS_ENTER)        
+
+        #self.manual_text0 = wx.TextCtrl(self, -1,
+        #    size=(70,-1),
+        #    value=str(self.type),
+        #    style=wx.TE_PROCESS_ENTER)
             
         self.manual_text1 = wx.TextCtrl(self, -1,
             size=(70,-1),
-            value=str(self.a1),
+            value=str(self.sample),
             style=wx.TE_PROCESS_ENTER)
 
         self.manual_text2 = wx.TextCtrl(self, -1,
             size=(70,-1),
-            value=str(self.a2),
+            value=str(self.fc),
             style=wx.TE_PROCESS_ENTER)
 
         self.manual_text3 = wx.TextCtrl(self, -1,
             size=(70,-1),
-            value=str(self.b1),
+            value=str(self.Q),
             style=wx.TE_PROCESS_ENTER)
 
         self.manual_text4 = wx.TextCtrl(self, -1,
             size=(70,-1),
-            value=str(self.b2),
+            value=str(self.gain),
             style=wx.TE_PROCESS_ENTER)
 
         #self.Bind(wx.EVT_UPDATE_UI, self.on_update_manual_text, self.manual_text)
-        self.Bind(wx.EVT_TEXT, self.on_text_enter_a0, self.manual_text0)
-        self.Bind(wx.EVT_TEXT, self.on_text_enter_a1, self.manual_text1)
-        self.Bind(wx.EVT_TEXT, self.on_text_enter_a2, self.manual_text2)
-        self.Bind(wx.EVT_TEXT, self.on_text_enter_b1, self.manual_text3)
-        self.Bind(wx.EVT_TEXT, self.on_text_enter_b2, self.manual_text4)
+        self.Bind(wx.EVT_COMBOBOX, self.on_text_enter_type, self.typeeffect)
+        self.Bind(wx.EVT_TEXT, self.on_text_enter_sample, self.manual_text1)
+        self.Bind(wx.EVT_TEXT, self.on_text_enter_fc, self.manual_text2)
+        self.Bind(wx.EVT_TEXT, self.on_text_enter_Q, self.manual_text3)
+        self.Bind(wx.EVT_TEXT, self.on_text_enter_gain, self.manual_text4)
         
 
         #manual_box = wx.BoxSizer(wx.HORIZONTAL)
@@ -123,55 +241,60 @@ class ControlBox(wx.Panel):
         #manual_box.Add(self.manual_text, flag=wx.ALIGN_CENTER_VERTICAL)
 
         #sizer.Add(self.radio_auto, 0, wx.ALL, 10)
-        sizer.Add(self.manual_text0, 0, wx.ALL, 10)
-        sizer.Add(self.manual_text1, 0, wx.ALL, 10)
-        sizer.Add(self.manual_text2, 0, wx.ALL, 10)
-        sizer.Add(self.manual_text3, 0, wx.ALL, 10)
-        sizer.Add(self.manual_text4, 0, wx.ALL, 10)
+        sizer.Add(wx.StaticText(self,-1,"Type"), 0, wx.ALIGN_CENTER, 5)
+        sizer.Add(self.typeeffect, 0, wx.ALIGN_CENTER, 5)
+        sizer.Add(wx.StaticText(self,-1,"Freq. sample"), 0, wx.ALIGN_CENTER, 5)
+        sizer.Add(self.manual_text1, 0, wx.ALIGN_CENTER, 5)
+        sizer.Add(wx.StaticText(self,-1,"Fc"), 0, wx.ALIGN_CENTER, 5)
+        sizer.Add(self.manual_text2, 0, wx.ALIGN_CENTER, 5)
+        sizer.Add(wx.StaticText(self,-1,"Q"), 0, wx.ALIGN_CENTER, 5)
+        sizer.Add(self.manual_text3, 0, wx.ALIGN_CENTER, 5)
+        sizer.Add(wx.StaticText(self,-1,"gain"), 0, wx.ALIGN_CENTER, 5)
+        sizer.Add(self.manual_text4, 0, wx.ALIGN_CENTER, 5)
 
         self.SetSizer(sizer)
         sizer.Fit(self)
 
-    def on_text_enter_a0(self, event):
-        self.a0 = self.manual_text0.GetValue()
+    def on_text_enter_type(self, event):
+        self.type = self.typeeffect.GetSelection()
 
-    def on_text_enter_a1(self, event):
-        self.a1 = self.manual_text1.GetValue()
+    def on_text_enter_sample(self, event):
+        self.sample = self.manual_text1.GetValue()
 
-    def on_text_enter_a2(self, event):
-        self.a2 = self.manual_text2.GetValue()
+    def on_text_enter_fc(self, event):
+        self.fc = self.manual_text2.GetValue()
 
-    def on_text_enter_b1(self, event):
-        self.b1 = self.manual_text3.GetValue()
+    def on_text_enter_Q(self, event):
+        self.Q = self.manual_text3.GetValue()
 
-    def on_text_enter_b2(self, event):
-        self.b2 = self.manual_text4.GetValue()  
+    def on_text_enter_gain(self, event):
+        self.gain = self.manual_text4.GetValue()  
 
-    def value_a0(self):
-        return self.a0
+    def value_type(self):
+        return self.type
 
-    def value_a1(self):
-        return self.a1
+    def value_sample(self):
+        return self.sample
     
-    def value_a2(self):
-        return self.a2
+    def value_fc(self):
+        return self.fc
 
-    def value_b1(self):
-        return self.b1
+    def value_Q(self):
+        return self.Q
 
-    def value_b2(self):
-        return self.b2
+    def value_gain(self):
+        return self.gain
 
 
 class GraphFrame(wx.Frame):
     """ The main frame of the application
     """
-    title = 'Demo: dynamic matplotlib graph'
+    title = 'Biquad Filter Response Simulator'
 
     def __init__(self):
         wx.Frame.__init__(self, None, -1, self.title)
-
         self.datagen = DataGen()
+        self.filter = Biquad(0, 20.0 / 1000.0, 1, 0)
 
         self.create_menu()
         self.create_status_bar()
@@ -314,30 +437,34 @@ class GraphFrame(wx.Frame):
         #self.plot_data.set_xdata(np.arange(len(self.data)))
         #self.plot_data.set_ydata(np.array(self.data))
 
-        xmin = round(min(self.datagen.timing), 0) + 1
-        xmax = round(max(self.datagen.timing), 0) - 1
+        xmin = round(min(self.datagen.timing), 0) - 1
+        xmax = round(max(self.datagen.timing), 0) + 1
         ymin = round(min(self.datagen.samples), 0) - 0.2
         ymax = round(max(self.datagen.samples), 0) * 1.1
         self.axes.set_xbound(lower=xmin, upper=xmax)
         self.axes.set_ybound(lower=ymin, upper=ymax)
 
-        self.plot_data.set_xdata(self.datagen.timing)
-        self.plot_data.set_ydata(self.datagen.filtered_samples)
         self.plot_data2.set_xdata(self.datagen.timing)
         self.plot_data2.set_ydata(self.datagen.samples)
+        self.plot_data.set_xdata(self.datagen.timing)
+        self.plot_data.set_ydata(self.datagen.filtered_samples)
         self.canvas.draw()
 
     def on_compute_button(self, event):
         #todo implement the filter computing here on sample
-        a0 = float(self.xmin_control.value_a0())
-        a1 = float(self.xmin_control.value_a1())
-        a2 = float(self.xmin_control.value_a2())
-        b1 = float(self.xmin_control.value_b1())
-        b2 = float(self.xmin_control.value_b2())
-        self.datagen.setUpCoefficient(a0, a1, a2, b1, b2)
+        type = float(self.xmin_control.value_type())
+        sample = float(self.xmin_control.value_sample())
+        fc = float(self.xmin_control.value_fc())
+        Q = float(self.xmin_control.value_Q())
+        gain = float(self.xmin_control.value_gain())
+
+        self.filter.setBiquad(type, fc / sample, Q, gain)
+
+        self.datagen.setUpCoefficient(self.filter.a0, self.filter.a1, self.filter.a2, self.filter.b1, self.filter.b2)
         self.datagen.reset_series()
         self.draw_plot()
-        print("a0:" + str(a0) + " a1:" + str(a1) + " a2:" + str(a2) + " b1:" + str(b1) + " b2:" + str(b2))
+        print("a0:" + str(self.filter.a0) + " a1:" + str(self.filter.a1) + " a2:" + str(self.filter.a2) + 
+            " b1:" + str(self.filter.b1) + " b2:" + str(self.filter.b2))
 
     def on_update_compute_button(self, event):
         #update the input label here if required
