@@ -145,18 +145,16 @@ class DataGen(object):
     def reset_series(self, selection):
         if selection == 0:
             #Min value
-            samples1 = [0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] * 5
+            samples1 = [0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0] * 5
             samples2 = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] * 2
             self.samples = samples1 + samples2
             self.timing = np.arange(0.0, len(self.samples), 1)
-            self.filtered_samples = list(map(self._compute_sample,self.samples))
         elif selection == 1:
             #Max value
             samples1 = [32768] * 140
             samples2 = [0] * 140
             self.samples = samples1 + samples2
             self.timing = np.arange(0.0, len(self.samples), 1)
-            self.filtered_samples = list(map(self._compute_sample,self.samples))
         elif selection == 2:
             #Sin
             timing1 = np.arange(0.0, 150, 1)
@@ -165,11 +163,25 @@ class DataGen(object):
             timing2 = np.arange(len(samples1), len(samples1)+len(samples2), 1)
             self.samples = np.concatenate((samples1, samples2))
             self.timing = np.concatenate((timing1, timing2))
-            self.filtered_samples = list(map(self._compute_sample,self.samples))
         elif selection == 3:
             self.samples = np.random.randint(1,100,500)
             self.timing = np.arange(0.0, len(self.samples), 1)
-            self.filtered_samples = list(map(self._compute_sample,self.samples))
+
+
+        self.average = []
+        self.filtered_samples = list(map(self._compute_sample,self.samples))
+        for i in range( len(self.samples) ) :
+            sum = 0
+            nb = 0
+            for j in range ( max(0,i-9) , i) :
+                sum += self.samples[j]
+                nb = nb + 1
+            if nb == 0:
+                self.average.append( 0 )
+            else:
+                self.average.append( sum / nb )
+        
+        print (self.filtered_samples)
 
     def setUpCoefficient(self, a0, a1, a2, b1, b2):
         self.a0 = a0
@@ -370,6 +382,7 @@ class GraphFrame(wx.Frame):
         #
         self.plot_data = self.axes.plot([], linewidth=1, color=(0, 1, 1),)[0]
         self.plot_data2 = self.axes.plot([], linewidth=1, color=(0.8, 0, 0),)[0]
+        self.plot_data3 = self.axes.plot([], linewidth=1, color=(0.8, 0.8, 0),)[0]
 
     def draw_plot(self):
         """ Redraws the plot
@@ -385,6 +398,8 @@ class GraphFrame(wx.Frame):
         self.plot_data2.set_ydata(self.datagen.samples)
         self.plot_data.set_xdata(self.datagen.timing)
         self.plot_data.set_ydata(self.datagen.filtered_samples)
+        self.plot_data3.set_xdata(self.datagen.timing)
+        self.plot_data3.set_ydata(self.datagen.average)
         self.canvas.draw()
 
     def on_compute_button(self, event):
